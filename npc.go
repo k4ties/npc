@@ -1,6 +1,7 @@
 package npc
 
 import (
+	"github.com/go-gl/mathgl/mgl64"
 	"time"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -67,6 +68,18 @@ func Create(s Settings, w *world.World, f HandlerFunc) *player.Player {
 
 	l := world.NewLoader(8, w, world.NopViewer{})
 	h := &handler{f: f, l: l, vulnerable: s.Vulnerable, pos: s.Position}
+
+	npc.ExecWorld(func(tx *world.Tx, e world.Entity) {
+		pl := e.(*player.Player)
+		pl.Move(mgl64.Vec3{}, s.Yaw, s.Pitch)
+		pl.SetScale(s.Scale)
+		pl.SetHeldItems(s.MainHand, s.OffHand)
+		pl.Armour().Set(s.Helmet, s.Chestplate, s.Leggings, s.Boots)
+		if s.Immobile {
+			pl.SetImmobile()
+		}
+		pl.Handle(h)
+	})
 
 	var p *player.Player
 
