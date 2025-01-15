@@ -1,12 +1,13 @@
 package npc
 
 import (
+	"time"
+
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/entity"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
-	"time"
 )
 
 // handler implements the handler for an NPC entity. It manages the execution of the HandlerFunc assigned to the NPC
@@ -17,16 +18,21 @@ type handler struct {
 	l *world.Loader
 	f HandlerFunc
 
+	pos mgl64.Vec3
+
 	vulnerable bool
 }
 
 // HandleHurt ...
-func (h *handler) HandleHurt(ctx *player.Context, _ *float64, _ bool, _ *time.Duration, src world.DamageSource) {
+func (h *handler) HandleHurt(ctx *player.Context, dmg *float64, _ bool, im *time.Duration, src world.DamageSource) {
 	if src, ok := src.(entity.AttackDamageSource); ok {
 		if attacker, ok := src.Attacker.(*player.Player); ok {
-			h.f(attacker)
+			*dmg = 0
+			h.f(ctx.Val(), attacker)
 		}
 	}
+
+	*im = 410 * time.Millisecond
 
 	if !h.vulnerable {
 		ctx.Cancel()
@@ -47,10 +53,16 @@ func (h *handler) HandleTeleport(ctx *player.Context, pos mgl64.Vec3) {
 // chunk at this new position is loaded.
 func (h *handler) syncPosition(tx *world.Tx, pos mgl64.Vec3) {
 	h.l.Move(tx, pos)
-	h.l.Load(tx, 1)
+	h.l.Load(tx, 8)
 }
 
 // HandleQuit ...
 func (h *handler) HandleQuit(p *player.Player) {
 	h.l.Close(p.Tx())
+}
+
+// HandleQuit ...
+func (h *handler) HandleDeath(p *player.Player, src world.DamageSource, keepInv *bool) {
+	*keepInv = true
+	p.Respawn()
 }

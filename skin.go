@@ -5,16 +5,17 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/df-mc/dragonfly/server/player/skin"
 	"image"
 	"io"
-	"io/ioutil"
 	"os"
-)
 
-// Always import image/png so that image.Decode can always decode PNGs. By far most of the skins are stored as PNGs so
-// it seems reasonable enough to do this.
-import _ "image/png"
+	"github.com/df-mc/dragonfly/server/player/skin"
+
+	// Always import image/png so that image.Decode can always decode PNGs. By far most of the skins are stored as PNGs so
+	// it seems reasonable enough to do this.
+
+	_ "image/png"
+)
 
 var (
 	//go:embed default_model.json
@@ -22,6 +23,10 @@ var (
 	// DefaultModel is a Model for a default custom skin. It is a model with a 64x64 texture.
 	DefaultModel, _ = ReadModel(bytes.NewReader(defaultModel))
 )
+
+func MustSkinFromPath(path string, model Model) skin.Skin {
+	return MustSkin(MustParseTexture(path), model)
+}
 
 // MustSkin creates a new skin.Skin using the Texture and Model passed. It panics if the dimensions as specified in the
 // model don't match those of the Texture.
@@ -108,7 +113,7 @@ func ParseTexture(path string) (Texture, error) {
 // and the bounds of the skin texture as specified in the model. If the file could not be parsed or if the model data
 // was invalid, an error is returned.
 func ReadModel(r io.Reader) (Model, error) {
-	model, err := ioutil.ReadAll(r)
+	model, err := io.ReadAll(r)
 	if err != nil {
 		return Model{}, fmt.Errorf("failed reading model: %w", err)
 	}

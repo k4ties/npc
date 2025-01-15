@@ -1,14 +1,41 @@
 package npc
 
 import (
+	"time"
+
+	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
+
 	"github.com/go-gl/mathgl/mgl64"
-	"time"
 )
 
+type playerConfig struct {
+	player.Config
+}
+
+func (playerConfig) BBox(e world.Entity) cube.BBox {
+	p := e.(*player.Player)
+	switch {
+	case p.Gliding(), p.Swimming(), p.Crawling():
+		return cube.Box(-0.3, 0, -0.3, 0.3, 0.6, 0.3)
+	case p.Sneaking():
+		return cube.Box(-0.3, 0, -0.3, 0.3, 1.5, 0.3)
+	default:
+		return cube.Box(-0.3, 0, -0.3, 0.3, 1.8, 0.3)
+	}
+}
+
+func (playerConfig) DecodeNBT(m map[string]any, data *world.EntityData) {}
+func (playerConfig) EncodeNBT(data *world.EntityData) map[string]any    { return nil }
+func (playerConfig) EncodeEntity() string                               { return "minecraft:player" }
+func (playerConfig) NetworkOffset() float64                             { return 1.621 }
+func (playerConfig) Open(tx *world.Tx, handle *world.EntityHandle, data *world.EntityData) world.Entity {
+	return player.Type.Open(tx, handle, data)
+}
+
 // HandlerFunc may be passed to Create to handle a *player.Player attacking an NPC.
-type HandlerFunc func(p *player.Player)
+type HandlerFunc func(npc, target *player.Player)
 
 // Create creates a new NPC with the Settings passed. A world.Loader is spawned in the background which follows the
 // NPC to prevent it from despawning. Create panics if the world passed is nil.
@@ -16,26 +43,32 @@ type HandlerFunc func(p *player.Player)
 // when the entity is interacted with.
 // Create returns the *player.Player created. This entity has been added to the world passed. It may be removed from
 // the world like any other entity by calling (*player.Player).Close.
-func Create(s Settings, tx *world.Tx, f HandlerFunc) *player.Player {
-	if tx == nil {
-		panic("tx passed to npc.create must not be nil")
+func Create(s Settings, w *world.World, f HandlerFunc) *player.Player {
+	if w == nil {
+		panic("world passed to npc.create must not be nil")
 	}
 	if f == nil {
-		f = func(*player.Player) {}
+		f = func(*player.Player, *player.Player) {}
 	}
-	opts := world.EntitySpawnOpts{
-		Position: s.Position,
+	if s.Scale <= 0 {
+		s.Scale = 1.0
 	}
 
-	npc := opts.New(player.Type,
+	npc := world.EntitySpawnOpts{Position: s.Position}.New(playerConfig{},
 		player.Config{
-			Name: s.Name,
+			Rotation: cube.Rotation{s.Yaw, s.Pitch},
+			Skin:     s.Skin,
+			Name:     s.Name,
+			Position: cube.PosFromVec3(s.Position).Vec3Centre(),
 		},
 	)
 
-	tx.AddEntity(npc)
-	l := world.NewLoader(1, tx.World(), world.NopViewer{})
-	h := &handler{f: f, l: l, vulnerable: s.Vulnerable}
+	w.Exec(func(tx *world.Tx) {
+		tx.AddEntity(npc)
+	})
+
+	l := world.NewLoader(8, w, world.NopViewer{})
+	h := &handler{f: f, l: l, vulnerable: s.Vulnerable, pos: s.Position}
 
 	npc.ExecWorld(func(tx *world.Tx, e world.Entity) {
 		pl := e.(*player.Player)
@@ -49,16 +82,24 @@ func Create(s Settings, tx *world.Tx, f HandlerFunc) *player.Player {
 		}
 
 		pl.Handle(h)
+		pl.Chat("test")
 	})
 
-	h.syncPosition(tx, s.Position)
-	go syncWorld(npc, l)
+	var p *player.Player
 
-	e, ok := npc.Entity(tx)
-	if !ok {
-		panic("npc is not in a world")
-	}
-	return e.(*player.Player)
+	w.Exec(func(tx *world.Tx) {
+		h.syncPosition(tx, s.Position)
+		go syncWorld(npc, l)
+
+		e, ok := npc.Entity(tx)
+		if !ok {
+			panic("npc is not in a world")
+		}
+
+		p = e.(*player.Player)
+	})
+
+	return p
 }
 
 // syncWorld periodically synchronises the world of the world.Loader passed with a player.Player's world. It stops doing
