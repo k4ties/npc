@@ -6,8 +6,6 @@ import (
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
-
-	"github.com/go-gl/mathgl/mgl64"
 )
 
 type playerConfig struct {
@@ -26,10 +24,10 @@ func (playerConfig) BBox(e world.Entity) cube.BBox {
 	}
 }
 
-func (playerConfig) DecodeNBT(m map[string]any, data *world.EntityData) {}
-func (playerConfig) EncodeNBT(data *world.EntityData) map[string]any    { return nil }
-func (playerConfig) EncodeEntity() string                               { return "minecraft:player" }
-func (playerConfig) NetworkOffset() float64                             { return 1.621 }
+func (playerConfig) DecodeNBT(map[string]any, *world.EntityData) {}
+func (playerConfig) EncodeNBT(*world.EntityData) map[string]any  { return nil }
+func (playerConfig) EncodeEntity() string                        { return "minecraft:player" }
+func (playerConfig) NetworkOffset() float64                      { return 1.621 }
 func (playerConfig) Open(tx *world.Tx, handle *world.EntityHandle, data *world.EntityData) world.Entity {
 	return player.Type.Open(tx, handle, data)
 }
@@ -69,21 +67,6 @@ func Create(s Settings, w *world.World, f HandlerFunc) *player.Player {
 
 	l := world.NewLoader(8, w, world.NopViewer{})
 	h := &handler{f: f, l: l, vulnerable: s.Vulnerable, pos: s.Position}
-
-	npc.ExecWorld(func(tx *world.Tx, e world.Entity) {
-		pl := e.(*player.Player)
-		pl.Move(mgl64.Vec3{}, s.Yaw, s.Pitch)
-		pl.SetScale(s.Scale)
-		pl.SetHeldItems(s.MainHand, s.OffHand)
-		pl.Armour().Set(s.Helmet, s.Chestplate, s.Leggings, s.Boots)
-
-		if s.Immobile {
-			pl.SetImmobile()
-		}
-
-		pl.Handle(h)
-		pl.Chat("test")
-	})
 
 	var p *player.Player
 

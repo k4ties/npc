@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/entity"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
@@ -25,15 +24,6 @@ type handler struct {
 
 // HandleHurt ...
 func (h *handler) HandleHurt(ctx *player.Context, dmg *float64, _ bool, im *time.Duration, src world.DamageSource) {
-	if src, ok := src.(entity.AttackDamageSource); ok {
-		if attacker, ok := src.Attacker.(*player.Player); ok {
-			*dmg = 0
-			h.f(ctx.Val(), attacker)
-		}
-	}
-
-	*im = 410 * time.Millisecond
-
 	if !h.vulnerable {
 		ctx.Cancel()
 	}
@@ -59,10 +49,4 @@ func (h *handler) syncPosition(tx *world.Tx, pos mgl64.Vec3) {
 // HandleQuit ...
 func (h *handler) HandleQuit(p *player.Player) {
 	h.l.Close(p.Tx())
-}
-
-// HandleQuit ...
-func (h *handler) HandleDeath(p *player.Player, src world.DamageSource, keepInv *bool) {
-	*keepInv = true
-	p.Respawn()
 }
